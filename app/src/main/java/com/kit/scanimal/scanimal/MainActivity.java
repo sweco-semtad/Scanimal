@@ -231,6 +231,7 @@ public class MainActivity extends ActionBarActivity {
                     }
                 }
 
+                // Testcode
                 appendText("Sending command");
                 String responce = sendCommand("SD2\r", epIN, epOUT);
                 appendText("Command result: \"" + responce + "\"");
