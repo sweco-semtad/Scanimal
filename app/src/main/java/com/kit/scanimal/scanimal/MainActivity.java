@@ -14,14 +14,10 @@ import android.hardware.usb.UsbManager;
 import android.hardware.usb.UsbRequest;
 import android.support.v4.content.LocalBroadcastManager;
 import android.support.v7.app.ActionBarActivity;
-import android.support.v4.app.Fragment;
 import android.os.Bundle;
 import android.util.Log;
-import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuItem;
-import android.view.View;
-import android.view.ViewGroup;
 import android.widget.TextView;
 
 import java.nio.ByteBuffer;
@@ -46,7 +42,6 @@ public class MainActivity extends ActionBarActivity {
 
     private UsbDevice mDevice;
     private UsbInterface mUsbInterface;
-    private UsbEndpoint mEndpointIntr;
     private UsbDeviceConnection mConnection;
 
     @Override
@@ -97,9 +92,7 @@ public class MainActivity extends ActionBarActivity {
             HashMap<String, UsbDevice> deviceList = mUsbManager.getDeviceList();
 
             if (deviceList.size() > 0) {
-                Iterator<UsbDevice> deviceIterator = deviceList.values().iterator();
-                while (deviceIterator.hasNext()) {
-                    UsbDevice device = deviceIterator.next();
+                for (UsbDevice device : deviceList.values()) {
                     if (device.getVendorId() == 1027 && device.getProductId() == 24577) {
                         mDevice = device;
                         appendText("Device already attached, trying to connect.");
@@ -130,38 +123,41 @@ public class MainActivity extends ActionBarActivity {
 
         public void onReceive(Context context, Intent intent) {
             String action = intent.getAction();
-            if (ACTION_USB_PERMISSION.equals(action)) {
-                synchronized (this) {
-                    UsbDevice device = intent.getParcelableExtra(UsbManager.EXTRA_DEVICE);
+            switch (action) {
+                case ACTION_USB_PERMISSION:
+                    synchronized (this) {
+                        UsbDevice device = intent.getParcelableExtra(UsbManager.EXTRA_DEVICE);
 
-                    if (intent.getBooleanExtra(UsbManager.EXTRA_PERMISSION_GRANTED, false)) {
-                        if(device != null && mUsbManager.hasPermission(device)){
-                            //call method to set up device communication
-                            appendText("Got permission to connect to device.");
-                            ConnectToDevice(device);
+                        if (intent.getBooleanExtra(UsbManager.EXTRA_PERMISSION_GRANTED, false)) {
+                            if (device != null && mUsbManager.hasPermission(device)) {
+                                //call method to set up device communication
+                                appendText("Got permission to connect to device.");
+                                ConnectToDevice(device);
+                            }
+                        } else {
+                            appendText("Permission denied for device.");
+                            Log.d(TAG, "permission denied for device " + device);
                         }
                     }
-                    else {
-                        appendText("Permission denied for device.");
-                        Log.d(TAG, "permission denied for device " + device);
+                    break;
+                case UsbManager.ACTION_USB_DEVICE_DETACHED: {
+                    UsbDevice device = intent.getParcelableExtra(UsbManager.EXTRA_DEVICE);
+                    if (device != null) {
+                        appendText("Device detached, cleaning up.");
+                        CleanUpUSB(device);
                     }
+                    break;
                 }
-            }
-            else if (UsbManager.ACTION_USB_DEVICE_DETACHED.equals(action)) {
-                UsbDevice device = intent.getParcelableExtra(UsbManager.EXTRA_DEVICE);
-                if (device != null) {
-                    appendText("Device detached, cleaning up.");
-                    CleanUpUSB(device);
+                case UsbManager.ACTION_USB_DEVICE_ATTACHED: {
+                    UsbDevice device = intent.getParcelableExtra(UsbManager.EXTRA_DEVICE);
+                    if (device != null) {
+                        TryConnect(device);
+                    }
+                    break;
                 }
-            }
-            else if (UsbManager.ACTION_USB_DEVICE_ATTACHED.equals(action)) {
-                UsbDevice device = intent.getParcelableExtra(UsbManager.EXTRA_DEVICE);
-                if (device != null) {
-                    TryConnect(device);
-                }
-            }
-            else {
-                appendText("Got broadcast but wrong action: " + action);
+                default:
+                    appendText("Got broadcast but wrong action: " + action);
+                    break;
             }
         }
     };
@@ -186,7 +182,6 @@ public class MainActivity extends ActionBarActivity {
             appendText("Interface count: " + device.getInterfaceCount());
 
             mUsbInterface = device.getInterface(interfaceNum);
-            mEndpointIntr = mUsbInterface.getEndpoint(endpointNum);
 
             UsbDeviceConnection connection = mUsbManager.openDevice(device);
 
